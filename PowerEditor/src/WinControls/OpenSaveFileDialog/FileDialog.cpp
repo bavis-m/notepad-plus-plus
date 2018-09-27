@@ -31,19 +31,16 @@
 #include "FileDialog.h"
 #include "Parameters.h"
 
+#include <algorithm>
 
 FileDialog *FileDialog::staticThis = NULL;
-//int FileDialog::_dialogFileBoxId = (NppParameters::getInstance())->getWinVersion() < WV_W2K?edt1:cmb13;
 
 FileDialog::FileDialog(HWND hwnd, HINSTANCE hInst) 
 	: _nbCharFileExt(0), _nbExt(0), _fileExt(NULL), _extTypeIndex(-1)
 {
 	staticThis = this;
-    //for (int i = 0 ; i < nbExtMax ; i++)
-    //    _extArray[i][0] = '\0';
-
-	_fileName[0] = '\0';
- 
+    
+	memset(_fileName, 0, sizeof(_fileName));
 	_winVersion = (NppParameters::getInstance())->getWinVersion();
 
 	_ofn.lStructSize = sizeof(_ofn);
@@ -125,7 +122,7 @@ int FileDialog::setExtsFilter(const TCHAR *extText, const TCHAR *exts)
 	extFilter += TEXT(")");	
 	
 	// Resize filter buffer
-	int nbCharAdditional = extFilter.length() + lstrlen(exts) + 3; // 3 additional for nulls
+	int nbCharAdditional = static_cast<int32_t>(extFilter.length() + lstrlen(exts) + 3); // 3 additional for nulls
 	if (_fileExt)
 	{
 		oldFilter = new TCHAR[_nbCharFileExt];
@@ -150,7 +147,7 @@ int FileDialog::setExtsFilter(const TCHAR *extText, const TCHAR *exts)
 	// Append new filter    
     TCHAR *pFileExt = _fileExt + _nbCharFileExt;
 	lstrcpy(pFileExt, extFilter.c_str());
-    _nbCharFileExt += extFilter.length() + 1;
+	_nbCharFileExt += static_cast<int32_t>(extFilter.length()) + 1;
     
     pFileExt = _fileExt + _nbCharFileExt;
 	lstrcpy(pFileExt, exts);
@@ -171,6 +168,12 @@ TCHAR* FileDialog::doOpenSingleFileDlg()
 
 	_ofn.Flags |= OFN_FILEMUSTEXIST;
 
+	if (!params->useNewStyleSaveDlg())
+	{
+		_ofn.Flags |= OFN_ENABLEHOOK | OFN_NOVALIDATE;
+		_ofn.lpfnHook = OFNHookProc;
+	}
+
 	TCHAR *fn = NULL;
 	try {
 		fn = ::GetOpenFileName(&_ofn)?_fileName:NULL;
@@ -180,10 +183,10 @@ TCHAR* FileDialog::doOpenSingleFileDlg()
 			::GetCurrentDirectory(MAX_PATH, dir);
 			params->setWorkingDir(dir);
 		}
-	} catch(std::exception e) {
+	} catch(std::exception& e) {
 		::MessageBoxA(NULL, e.what(), "Exception", MB_OK);
 	} catch(...) {
-		::MessageBox(NULL, TEXT("GetSaveFileName crashes!!!"), TEXT(""), MB_OK);
+		::MessageBox(NULL, TEXT("doOpenSingleFileDlg crashes!!!"), TEXT(""), MB_OK);
 	}
 
 	::SetCurrentDirectory(dir); 
@@ -195,12 +198,17 @@ stringVector * FileDialog::doOpenMultiFilesDlg()
 {
 	TCHAR dir[MAX_PATH];
 	::GetCurrentDirectory(MAX_PATH, dir);
-	//_ofn.lpstrInitialDir = dir;
 
 	NppParameters * params = NppParameters::getInstance();
 	_ofn.lpstrInitialDir = params->getWorkingDir();
 
-	_ofn.Flags |= OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT;
+	_ofn.Flags |= OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT | OFN_ENABLESIZING;
+
+	if (!params->useNewStyleSaveDlg())
+	{
+		_ofn.Flags |= OFN_ENABLEHOOK | OFN_NOVALIDATE;
+		_ofn.lpfnHook = OFNHookProc;
+	}
 
 	BOOL res = ::GetOpenFileName(&_ofn);
 	if (params->getNppGUI()._openSaveDir == dir_last)
@@ -246,8 +254,7 @@ stringVector * FileDialog::doOpenMultiFilesDlg()
 TCHAR * FileDialog::doSaveDlg() 
 {
 	TCHAR dir[MAX_PATH];
-	::GetCurrentDirectory(MAX_PATH, dir); 
-	//_ofn.lpstrInitialDir = dir;
+	::GetCurrentDirectory(MAX_PATH, dir);
 
 	NppParameters * params = NppParameters::getInstance();
 	_ofn.lpstrInitialDir = params->getWorkingDir();
@@ -256,7 +263,7 @@ TCHAR * FileDialog::doSaveDlg()
 
 	if (!params->useNewStyleSaveDlg())
 	{
-		_ofn.Flags |= OFN_ENABLEHOOK;
+		_ofn.Flags |= OFN_ENABLEHOOK | OFN_NOVALIDATE;
 		_ofn.lpfnHook = OFNHookProc;
 	}
 
@@ -268,7 +275,7 @@ TCHAR * FileDialog::doSaveDlg()
 			::GetCurrentDirectory(MAX_PATH, dir);
 			params->setWorkingDir(dir);
 		}
-	} catch(std::exception e) {
+	} catch(std::exception& e) {
 		::MessageBoxA(NULL, e.what(), "Exception", MB_OK);
 	} catch(...) {
 		::MessageBox(NULL, TEXT("GetSaveFileName crashes!!!"), TEXT(""), MB_OK);
@@ -337,11 +344,11 @@ static generic_string addExt(HWND textCtrl, HWND typeCtrl) {
 	TCHAR fn[MAX_PATH];
 	::GetWindowText(textCtrl, fn, MAX_PATH);
 	
-	int i = ::SendMessage(typeCtrl, CB_GETCURSEL, 0, 0);
+	auto i = ::SendMessage(typeCtrl, CB_GETCURSEL, 0, 0);
 
-	int cbTextLen = ::SendMessage(typeCtrl, CB_GETLBTEXTLEN, i, 0);
+	auto cbTextLen = ::SendMessage(typeCtrl, CB_GETLBTEXTLEN, i, 0);
 	TCHAR * ext = new TCHAR[cbTextLen + 1];
-	::SendMessage(typeCtrl, CB_GETLBTEXT, i, (LPARAM)ext);
+	::SendMessage(typeCtrl, CB_GETLBTEXT, i, reinterpret_cast<LPARAM>(ext));
 	
 	TCHAR *pExt = get1stExt(ext);
 	if (*fn != '\0')
@@ -355,7 +362,6 @@ static generic_string addExt(HWND textCtrl, HWND typeCtrl) {
 	return returnExt;
 };
 
-
 UINT_PTR CALLBACK FileDialog::OFNHookProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch(uMsg)
@@ -365,7 +371,7 @@ UINT_PTR CALLBACK FileDialog::OFNHookProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
 			NppParameters *pNppParam = NppParameters::getInstance();
 			int index = pNppParam->getFileSaveDlgFilterIndex();
 
-			::SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)staticThis);
+			::SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(staticThis));
 			hFileDlg = ::GetParent(hWnd);
 			goToCenter(hFileDlg);
 
@@ -374,11 +380,10 @@ UINT_PTR CALLBACK FileDialog::OFNHookProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
 				HWND typeControl = ::GetDlgItem(hFileDlg, cmb1);
 				::SendMessage(typeControl, CB_SETCURSEL, index, 0);
 			}
-
 			// Don't touch the following 3 lines, they are cursed !!!
-			oldProc = (WNDPROC)::GetWindowLongPtr(hFileDlg, GWLP_WNDPROC);
+			oldProc = reinterpret_cast<WNDPROC>(::GetWindowLongPtr(hFileDlg, GWLP_WNDPROC));
 			if (oldProc)
-				::SetWindowLongPtr(hFileDlg, GWLP_WNDPROC, (LONG_PTR)fileDlgProc);
+				::SetWindowLongPtr(hFileDlg, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(fileDlgProc));
 
 			return FALSE;
 		}
@@ -428,9 +433,37 @@ BOOL APIENTRY FileDialog::run(HWND hWnd, UINT uMsg, WPARAM, LPARAM lParam)
 				case CDN_FILEOK :
 				{
 					HWND typeControl = ::GetDlgItem(::GetParent(hWnd), cmb1);
-					int index = ::SendMessage(typeControl, CB_GETCURSEL, 0, 0);
+					int index = static_cast<int32_t>(::SendMessage(typeControl, CB_GETCURSEL, 0, 0));
 					NppParameters *pNppParam = NppParameters::getInstance();
 					pNppParam->setFileSaveDlgFilterIndex(index);
+
+					// change forward-slash to back-slash directory paths so dialog can interpret
+					OPENFILENAME* ofn = reinterpret_cast<LPOFNOTIFY>(lParam)->lpOFN;
+					TCHAR* fileName = ofn->lpstrFile;
+
+					// note: this check is essential, because otherwise we could return True
+					//       with a OFN_NOVALIDATE dialog, which leads to opening every file
+					//       in the specified directory. Multi-select terminator is \0\0.
+					if ((ofn->Flags & OFN_ALLOWMULTISELECT) &&
+						(*(fileName + lstrlen(fileName) + 1) != '\0'))
+						return FALSE;
+
+					if (::PathIsDirectory(fileName))
+					{
+						// change to backslash, and insert trailing '\' to indicate directory
+						hFileDlg = ::GetParent(hWnd);
+						std::wstring _fnStr(fileName);
+						std::replace(_fnStr.begin(), _fnStr.end(), '/', '\\');
+
+						if (_fnStr.back() != '\\')
+							_fnStr.insert(_fnStr.end(), '\\');
+
+						// change the dialog directory selection
+						::SendMessage(hFileDlg, CDM_SETCONTROLTEXT, edt1,
+									reinterpret_cast<LPARAM>(_fnStr.c_str()));
+						::PostMessage(hFileDlg, WM_COMMAND, IDOK, 0);
+						::SetWindowLongPtr(hWnd, 0 /*DWL_MSGRESULT*/, 1);
+					}
 					return TRUE;
 				}
 
@@ -478,16 +511,16 @@ generic_string changeExt(generic_string fn, generic_string ext, bool forceReplac
 
 	generic_string fnExt = fn;
 	
-	int index = fnExt.find_last_of(TEXT("."));
+	auto index = fnExt.find_last_of(TEXT("."));
 	generic_string extension = TEXT(".");
 	extension += ext;
-	if (size_t(index) == generic_string::npos)
+	if (index == generic_string::npos)
 	{
 		fnExt += extension;
 	}
 	else if (forceReplaced)
 	{
-		int len = (extension.length() > fnExt.length() - index + 1)?extension.length():fnExt.length() - index + 1;
+		auto len = (extension.length() > fnExt.length() - index + 1)?extension.length():fnExt.length() - index + 1;
 		fnExt.replace(index, len, extension);
 	}
 	return fnExt;

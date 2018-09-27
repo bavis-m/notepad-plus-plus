@@ -26,8 +26,7 @@
 // Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 
-#ifndef FILEBROWSER_H
-#define  FILEBROWSER_H
+#pragma once
 
 //#include <windows.h>
 #ifndef DOCKINGDLGINTERFACE_H
@@ -37,32 +36,20 @@
 #include "TreeView.h"
 #include "fileBrowser_rc.h"
 
-#define FB_PANELTITLE     TEXT("Folder as Workspace")
-/*
-#define PM_NEWFOLDERNAME         TEXT("Folder Name")
-#define PM_NEWPROJECTNAME        TEXT("Project Name")
-
-#define PM_SAVEWORKSPACE           TEXT("Save")
-#define PM_SAVEASWORKSPACE         TEXT("Save As...")
-#define PM_SAVEACOPYASWORKSPACE    TEXT("Save a Copy As...")
-#define PM_NEWPROJECTWORKSPACE     TEXT("Add New Project")
-
-#define PM_EDITRENAME              TEXT("Rename")
-#define PM_EDITNEWFOLDER           TEXT("Add Folder")
-#define PM_EDITADDFILES            TEXT("Add Files...")
-#define PM_EDITADDFILESRECUSIVELY  TEXT("Add Files from Directory...")
-*/
-#define FB_REMOVEROOT              TEXT("Remove")
-
-//#define PM_EDITMODIFYFILE          TEXT("Copy path")
-
-//#define PM_WORKSPACEMENUENTRY      TEXT("Workspace")
-//#define PM_EDITMENUENTRY           TEXT("Edit")
-
-//#define PM_MOVEUPENTRY             TEXT("Move Up\tCtrl+Up")
-//#define PM_MOVEDOWNENTRY           TEXT("Move Down\tCtrl+Down")
+#define FB_PANELTITLE         TEXT("Folder as Workspace")
+#define FB_ADDROOT            TEXT("Add")
+#define FB_REMOVEALLROOTS     TEXT("Remove All")
+#define FB_REMOVEROOTFOLDER   TEXT("Remove")
+#define FB_COPYEPATH          TEXT("Copy path")
+#define FB_FINDINFILES        TEXT("Find in Files...")
+#define FB_EXPLORERHERE       TEXT("Explorer here")
+#define FB_CMDHERE            TEXT("CMD here")
+#define FB_OPENINNPP          TEXT("Open")
+#define FB_SHELLEXECUTE       TEXT("Run by system")
 
 class TiXmlNode;
+class FileBrowser;
+class FolderInfo;
 
 class FileInfo final
 {
@@ -158,7 +145,7 @@ public:
 	void addRootFolder(generic_string);
 
 	HTREEITEM getRootFromFullPath(const generic_string & rootPath) const;
-	HTREEITEM FileBrowser::findChildNodeFromName(HTREEITEM parent, generic_string);
+	HTREEITEM findChildNodeFromName(HTREEITEM parent, generic_string);
 
 	bool addInTree(generic_string rootPath, generic_string addItemFullPath, HTREEITEM node, std::vector<generic_string> linarPathArray);
 	HTREEITEM findInTree(generic_string rootPath, HTREEITEM node, std::vector<generic_string> linarPathArray);
@@ -170,7 +157,7 @@ public:
 
 protected:
 	TreeView _treeView;
-	HIMAGELIST _hImaLst;
+	HIMAGELIST _hImaLst = nullptr;
 
 	HMENU _hGlobalMenu = NULL;
 	HMENU _hRootMenu = NULL;
@@ -184,7 +171,6 @@ protected:
 
 	BrowserNodeType getNodeType(HTREEITEM hItem);
 	void popupMenuCmd(int cmdID);
-	POINT getMenuDisplayPoint(int iButton);
 	virtual INT_PTR CALLBACK run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam);
 	void notified(LPNMHDR notification);
 	void showContextMenu(int x, int y);
@@ -192,5 +178,3 @@ protected:
 	void getDirectoryStructure(const TCHAR *dir, const std::vector<generic_string> & patterns, FolderInfo & directoryStructure, bool isRecursive, bool isInHiddenDir); 
 	HTREEITEM createFolderItemsFromDirStruct(HTREEITEM hParentItem, const FolderInfo & directoryStructure);
 };
-
-#endif // FILEBROWSER_H

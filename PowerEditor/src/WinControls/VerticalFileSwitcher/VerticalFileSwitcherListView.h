@@ -35,6 +35,7 @@
 class Buffer;
 typedef Buffer * BufferID;	//each buffer has unique ID by which it can be retrieved
 
+#define SORT_DIRECTION_NONE     -1
 #define SORT_DIRECTION_UP     0
 #define SORT_DIRECTION_DOWN   1
 
@@ -69,7 +70,7 @@ public:
 		ListView_DeleteColumn(_hSelf, i);
 	};
 	int nbSelectedFiles() const {
-		return SendMessage(_hSelf, LVM_GETSELECTEDCOUNT, 0, 0);
+		return static_cast<int32_t>(SendMessage(_hSelf, LVM_GETSELECTEDCOUNT, 0, 0));
 	};
 
 	std::vector<SwitcherFileInfo> getSelectedFiles(bool reverse = false) const;
